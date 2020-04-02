@@ -14,6 +14,7 @@ from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 import smach
 import smach_ros
+import auxiliar as aux
 
 
 def identifica_cor(frame):
@@ -28,13 +29,23 @@ def identifica_cor(frame):
     # frame = cv2.flip(frame, -1) # flip 0: eixo x, 1: eixo y, -1: 2 eixos
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    cor_menor = np.array([0, 50, 50])
-    cor_maior = np.array([8, 255, 255])
+
+    """Não sabemos se isso é RGB ou não"""
+    # cor_menor = np.array([37, 50, 50])
+    # cor_maior = np.array([47, 255, 255])
+    """
+    Utilizando uma função passada pelo professor na Atividade 2,
+    podemos entregar ao programa uma lista com valores [R,G,B] e
+    a função "ranges" do módulo auxiliar converte em HSV (formato)
+    lido pelo openCV e devolve os dois valores que precisamos:
+    cor_menor, cor_maior
+    """
+    cor_menor,cor_maior = aux.ranges([0,99,7]) # devolve dois valores: hsv_menor e hsv_maior
     segmentado_cor = cv2.inRange(frame_hsv, cor_menor, cor_maior)
 
-    cor_menor = np.array([172, 50, 50])
-    cor_maior = np.array([180, 255, 255])
-    segmentado_cor += cv2.inRange(frame_hsv, cor_menor, cor_maior)
+    #cor_menor = np.array([172, 50, 50])
+    #cor_maior = np.array([180, 255, 255])
+    #segmentado_cor += cv2.inRange(frame_hsv, cor_menor, cor_maior)
 
     # Note que a notacão do numpy encara as imagens como matriz, portanto o enderecamento é
     # linha, coluna ou (y,x)

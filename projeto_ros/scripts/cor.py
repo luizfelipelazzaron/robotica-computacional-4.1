@@ -4,6 +4,7 @@
 __author__ = ["Rachel P. B. Moraes", "Igor Montagner", "Fabio Miranda"]
 
 
+
 import rospy
 import numpy as np
 import tf
@@ -15,6 +16,13 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Image, CompressedImage
 from cv_bridge import CvBridge, CvBridgeError
 import cormodule
+from sensor_msgs.msg import LaserScan
+import auxiliar
+
+#Setando a distância medida 
+distancia = None
+
+#Função scaneou
 
 
 bridge = CvBridge()
@@ -32,73 +40,105 @@ check_delay = False
 
 # A função a seguir é chamada sempre que chega um novo frame
 def roda_todo_frame(imagem):
-	print("frame")
-	global cv_image
-	global media
-	global centro
+    print("frame")
+    global cv_image
+    global media
+    global centro
 
-	now = rospy.get_rostime()
-	imgtime = imagem.header.stamp
-	lag = now-imgtime # calcula o lag
-	delay = lag.nsecs
-	print("delay ", "{:.3f}".format(delay/1.0E9))
-	if delay > atraso and check_delay==True:
-		print("Descartando por causa do delay do frame:", delay)
-		return 
-	try:
-		antes = time.clock()
-		cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
-		# cv_image = cv2.flip(cv_image, -1)
-		media, centro, maior_area =  cormodule.identifica_cor(cv_image)
-		depois = time.clock()
-		cv2.imshow("Camera", cv_image)
-	except CvBridgeError as e:
-		print('ex', e)
-	
+    now = rospy.get_rostime()
+    imgtime = imagem.header.stamp
+    lag = now-imgtime # calcula o lag
+    delay = lag.nsecs
+    print("delay ", "{:.3f}".format(delay/1.0E9))
+    if delay > atraso and check_delay==True:
+        print("Descartando por causa do delay do frame:", delay)
+        return 
+    try:
+        antes = time.clock()
+        cv_image = bridge.compressed_imgmsg_to_cv2(imagem, "bgr8")
+        # cv_image = cv2.flip(cv_image, -1)
+        media, centro, maior_area =  cormodule.identifica_cor(cv_image)
+        depois = time.clock()
+        cv2.imshow("Camera", cv_image)
+    except CvBridgeError as e:
+        print('ex', e)
+    
 if __name__=="__main__":
-	rospy.init_node("cor")
+    rospy.init_node("cor")
 
-	# topico_imagem = "/kamera"
-	topico_imagem = "/camera/rgb/image_raw/compressed"
-	
-	# Para renomear a *webcam*
-	#   Primeiro instale o suporte https://github.com/Insper/robot19/blob/master/guides/debugar_sem_robo_opencv_melodic.md
-	#
-	#	Depois faça:
-	#	
-	#	rosrun cv_camera cv_camera_node
-	#
-	# 	rosrun topic_tools relay  /cv_camera/image_raw/compressed /kamera
-	#
-	# 
-	# Para renomear a câmera simulada do Gazebo
-	# 
-	# 	rosrun topic_tools relay  /camera/rgb/image_raw/compressed /kamera
-	# 
-	# Para renomear a câmera da Raspberry
-	# 
-	# 	rosrun topic_tools relay /raspicam_node/image/compressed /kamera
-	# 
+    # topico_imagem = "/kamera"
+    topico_imagem = "/camera/rgb/image_raw/compressed"
+    
+    # Para renomear a *webcam*
+    #   Primeiro instale o suporte https://github.com/Insper/robot19/blob/master/guides/debugar_sem_robo_opencv_melodic.md
+    #
+    #	Depois faça:
+    #	
+    #	rosrun cv_camera cv_camera_node
+    #
+    # 	rosrun topic_tools relay  /cv_camera/image_raw/compressed /kamera
+    #
+    # 
+    # Para renomear a câmera simulada do Gazebo
+    # 
+    # 	rosrun topic_tools relay  /camera/rgb/image_raw/compressed /kamera
+    # 
+    # Para renomear a câmera da Raspberry
+    # 
+    # 	rosrun topic_tools relay /raspicam_node/image/compressed /kamera
+    # 
 
-	recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
-	print("Usando ", topico_imagem)
+    recebedor = rospy.Subscriber(topico_imagem, CompressedImage, roda_todo_frame, queue_size=4, buff_size = 2**24)
+    print("Usando ", topico_imagem)
 
-	velocidade_saida = rospy.Publisher("/cmd_vel", Twist, queue_size = 1)
+    velocidade_saida = rospy.Publisher("/cmd_vel", Twist, queue_size = 1)
 
-	try:
+    recebe_scan = rospy.Subscriber("/scan", LaserScan, auxiliar.scaneou)
 
-		while not rospy.is_shutdown():
-			vel = Twist(Vector3(0,0,0), Vector3(0,0,0))
-			if len(media) != 0 and len(centro) != 0:
-				print("Média dos vermelhos: {0}, {1}".format(media[0], media[1]))
-				print("Centro dos vermelhos: {0}, {1}".format(centro[0], centro[1]))
+    contador = 0
+    direita = False
+    esquerda = False
+    try:
 
-				if (media[0] > centro[0]):
-					vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
-				if (media[0] < centro[0]):
-					vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
-			velocidade_saida.publish(vel)
-			rospy.sleep(0.1)
+        while not rospy.is_shutdown():
+            print("Distancia:",auxiliar.distancia)
+            print("contador:", contador)
+            vel = Twist(Vector3(0,0,0), Vector3(0,0,0))
+            if len(media) != 0 and len(centro) != 0:
+                print("Média dos verdes: {0}, {1}".format(media[0], media[1]))
+                print("Centro dos verdes: {0}, {1}".format(centro[0], centro[1]))
 
-	except rospy.ROSInterruptException:
-	    print("Ocorreu uma exceção com o rospy")
+            
+                # while not detected:
+                if (media[0] > centro[0]): #if (media[0] > centro[0] - 5): 
+                    vel = Twist(Vector3(0,0,0), Vector3(0,0,-0.1))
+                    # if not direita:
+                    #     direita = True
+                    #     esquerda = False
+                    #     contador += 1
+                    # else:
+                    #     contador = 0
+
+
+                elif (media[0] < centro[0]): #if (media[0] > centro[0] + 5)
+                    vel = Twist(Vector3(0,0,0), Vector3(0,0,0.1))
+                    # if not esquerda:
+                    #     esquerda = True
+                    #     direita = False
+                    #     contador += 1
+                    # else:
+                    #     contador = 0
+
+                velocidade_saida.publish(vel)
+                rospy.sleep(0.2)
+
+                if (auxiliar.distancia < .35):
+                    vel = Twist(Vector3(-0.05,0,0), Vector3(0,0,0))
+                else:
+                    vel = Twist(Vector3(0.05,0,0), Vector3(0,0,0))
+                
+                velocidade_saida.publish(vel)
+                rospy.sleep(0.2)
+
+    except rospy.ROSInterruptException:
+        print("Ocorreu uma exceção com o rospy")
